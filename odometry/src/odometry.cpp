@@ -47,35 +47,84 @@ public:
   }
 
   void run() {
+    //### Placeholder Variable Initializations ###
+    double delta_x  = 0;
+    double delta_y  = 0;
+    double delta_th = 0;
+    double Delta_x  = 0;
+    double Delta_y  = 0;
+    double Delta_th = 0;
+    C_D = Eigen::Matrix3d::Zero(3, 3);
+    double x  = 0;
+    double y  = 0;
+    double th = 0;
+
+    //Reset every A integration steps
+    int A = 20;
+    int N = 0;
     while(n.ok()) {
+      if (N = A) {
+        keyframe_callback();
+        N = 0;
+      }
       usleep(100);
       current_time   = ros::Time::now();
       double delta_t = (current_time - last_time).toSec();
 
       //### Placeholder Variable Initializations ###
       // This is not where these variables should live.
-      double delta_x  = 0;
-      double delta_y  = 0;
-      double delta_th = 0;
-      double Delta_x  = 0;
-      double Delta_y  = 0;
-      double Delta_th = 0;
-      C_D = Eigen::Matrix3d::Zero(3, 3);
-      double x  = 0;
-      double y  = 0;
-      double th = 0;
+      //double delta_x  = 0;
+      //double delta_y  = 0;
+      //double delta_th = 0;
+      //double Delta_x  = 0;
+      //double Delta_y  = 0;
+      //double Delta_th = 0;
+      //C_D = Eigen::Matrix3d::Zero(3, 3);
+      //double x  = 0;
+      //double y  = 0;
+      //double th = 0;
       
       //### Time Integration of Velocity Data ###
+      delta_x = vx * delta_t;
+      delta_y = vy * delta_t;
+      delta_th = vth * delta_t;
      
       //### Time Integration of Velocity Data - Jacobian stage ###
-      
+      Eigen::Matrix3d J_dvdt;
+      J_dvdt << 1, 0, 0, 0, 1, 0, 0, 0, 1;
+      //J_dvdt(0,0) = 1;
+      //J_dvdt(1,1) = 1;
+      //J_dvdt(2,2) = 1;
+
+      //### Time Integration of Velocity Data - Coovariance stage ###
+      Eigen::Matrix3d C_d;
+      C_d = J_dvdt*C_v*J_dvdt.transpose()*delta_t;
+
       //### Integrate Factor ###
+      Delta_x = Delta_x+delta_x*cos(Delta_th)-delta_y*sin(Delta_th);
+      Delta_y = Delta_y+delta_x*sin(Delta_th)+delta_y*cos(Delta_th);
+      Delta_th = Delta_th+delta_th;
     
       //### Integrate Factor - Jacobian Stage ###
-      
+      Eigen::Matrix3d J_D_D;
+      float p02 = -delta_x*sin(Delta_th)-delta_y*cos(Delta_th);
+      float p12 = delta_x*cos(Delta_th)-delta_y*sin(Delta_th);
+      J_D_D << 1, 0, p02, 0, 1, p12, 0, 0, 1;
+
+      Eigen::Matrix3d J_D_d;
+      float p00 = cos(Delta_th);
+      float p01 = -sin(Delta_th);
+      float p10 = sin(Delta_th);
+      float p11 = p00;
+      J_D_d << p00, p01, 0, p10, p11, 0, 0, 0, 1;
+
       //### Integrate Factor - Covariance stage ###
+      C_D = J_D_D*C_D*J_D_D.transpose()+J_D_d*C_d*J_D_d.transpose();
 
       //### Integrate Global Pose ###
+      x = x+delta_x*cos(th)-delta_y*sin(th);
+      y = y+delta_x*sin(th)+delta_y*cos(th);
+      th = th+delta_th;
 
       //### Publish d, D and global poses, and covariance C_D ###
       delta_pub.publish(create_pose_msg(delta_x, delta_y, delta_th));
@@ -85,6 +134,7 @@ public:
 
       last_time = current_time;
       ros::spinOnce();
+      N = N+1;
     }
   }
 
@@ -96,12 +146,12 @@ public:
     // DS: C_D_pub.publish(create_covariance_msg(C_D));
 
     //### Keyframe reset: factor pose increment ###
-    //Delta_x  = 0.0;
-    //Delta_y  = 0.0;
-    //Delta_th = 0.0;
+    Delta_x  = 0.0;
+    Delta_y  = 0.0;
+    Delta_th = 0.0;
 
     //### Keyframe reset: factor pose increment's covariance ###
-    //C_D = Eigen::Matrix3d::Zero(3, 3);
+    C_D = Eigen::Matrix3d::Zero(3, 3);
   }
 
 private:
